@@ -1,27 +1,48 @@
-//Libraries
+/**************************************************
+* Wifi Temperature Monitor
+*
+* Author: Maitreya Panse
+* 
+*
+* This is a simple program that samples Temperature
+* and Humidity Data from the DHT22 Sensor and 
+* sends it to ThingSpeak over Wifi. 
+*
+* 09/03/97 - Version 1.1 - Beluga
+*   Changed temperature sampling time to 5 minutes
+*   Cleaned up code - Added Comments as per 
+*   Jack Ganssle standard. 
+* 07/12/97 - Version 1.0 - Orca
+*   Initial release
+**************************************************/
+
+/***************************************************/
+/*Include Section*/
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
-
 #include <SoftwareSerial.h>
+/***************************************************/
 
-
+/***************************************************/
+/*Defines Section */
 // DHT22 (Temp Sensor) Initializations
 #define DHTPIN 7     // DATA Pin connection
 #define DHTTYPE DHT22   // DHT 22  Temperature Sensor 
-DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 
 // ESP8266 Wifi Module Intializations
 #define RX 11 //Define Pin 11 as RX TO Arduino FROM WIfi Module
 #define TX 10 //Define Pin 10 as TX FROM Arduino TO WIFI Module
+/***************************************************/
 
 
+/***************************************************/
+/*Global Variables Section */
+DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 // ESP8266 Wifi Variables
-String AP = "INSERT YOUR ACCESS POINT NAME";
-String PWD = "INSERT YOUR ACCESS POINT PWD";
-
-String APIKey = "INSERT YOUR API KEY FROM THINGS SPEAK";
-
+String AP = "INSERT YOUR ACCCESS POINT HERE";
+String PWD = "INSERT YOUR PASSWORD HERE";
+String APIKey = "INSERT YOUR THINGSPEAK API KEY HERE";
 
 int ReceiveSuccessCount;
 bool ExpectedDataReceive = false;
@@ -29,12 +50,11 @@ bool WifiInitDone = false;
 
 SoftwareSerial esp8266(RX,TX);
 
-
-
-
 //Temperature Sensor Variables
 float hum;  //Stores humidity value
 float temp; //Stores temperature value
+
+/***************************************************/
 
 void setup()
 {
@@ -52,23 +72,33 @@ void loop()
   
   while(1)
   {
+    //Chip Enable on Wifi Module
     digitalWrite(4, HIGH); 
+    delay(5000);
     if(WifiInitDone == false)
     {
       WifiInitDone = WifiInit();
     }
-
-    WifiInitDone = WifiSendTemperatureData();
+    if(WifiInitDone = true)
+    {
+        WifiInitDone = WifiSendTemperatureData();
+        WifiInitDone = false;
+    }
+   
     digitalWrite(4, LOW);
-    delay(60000); //Get Temperature Point every minute
+    delay(300000); //Get Temperature Point every 5 minute
 
   }
       
 }
 
-
-//WifiInit - Initializes wifimodule
-//Returns true if wifi initialization is successfull.
+/**************************************************
+* WifiInit  : bool WifiInit()
+*    returns    : return true if Wifi Initalization is successfull
+* Created by    : Maitreya Panse
+* Date created    : 05/08/2019
+* Description   : Establishes communication with Wifi Module and connects to Access Point
+**************************************************/
 bool WifiInit()
 {
   //Flags to keep track if commands are sent successfully
@@ -103,6 +133,14 @@ bool WifiInit()
   return InitSuccess;
 }
 
+/**************************************************
+* WifiSendTemperatureData  : bool WifiSendTemperatureData()
+*    returns    : return true if Temperature Data is successfully sent to ThingSpeak
+* Created by    : Maitreya Panse
+* Date created    : 05/08/2019
+* Description   : Function opens TCP connection and sends temperature data to ThingSpeak
+**************************************************/
+
 bool WifiSendTemperatureData()
 {
    bool WifiSendSuccess = false; 
@@ -112,11 +150,15 @@ bool WifiSendTemperatureData()
    
    GetTemperatureHumidity();
    String Header = "GET /update?key="+ APIKey +"&field1="+ String(temp) + "&field2="+ String(hum);
-   String HeaderLength = String(Header.length()+2);
+   String HeaderLength = String(Header.length()+1);
 
    CIPStartSuccess = SendToWifiModule("AT+CIPSTART=\"TCP\",\"184.106.153.149\",80\r\n",3000, "CONNECT");
+   if(CIPStartSuccess == false)return false;
+   
    CIPSendSuccess = SendToWifiModule("AT+CIPSEND="+ HeaderLength + "\r\n",1000,">");
-   SendSuccess = SendToWifiModule(Header + "\r\n",20000,"+IPD");
+   if(CIPSendSuccess == false) return false;
+   
+   SendSuccess = SendToWifiModule(Header + "\r\n",5000,"+IPD");
 
   if(CIPStartSuccess && CIPSendSuccess && SendSuccess)
   {
@@ -135,9 +177,12 @@ bool WifiSendTemperatureData()
 }
 
 
-//GetTemperatureHumidity - Gets temperature and humidty data from DHT22
-//Temperature is stored in the temp global variable
-//Humidity is store in the hum temp global variable
+/**************************************************
+* GetTemperatureHumidity  : void GetTemperatureHumidity()
+* Created by    : Maitreya Panse
+* Date created    : 05/08/2019
+* Description   : Function gets temperature and humidity data from DHT22 sensor
+**************************************************/
 void GetTemperatureHumidity()
 {
    bool GetDHT22DataSuccess = false; 
@@ -172,10 +217,16 @@ void GetTemperatureHumidity()
 }
 
 
-//SendToWifiModule - sends AT Command to wifi module and verifies if expected output was received
-//Arguments: String command - AT Command to send to wifi module
-//           int DelayBeforeReading - Time to wait before checking response from module
-//           char ExpectedOutput[] = ExpectedOutput from Module.
+/**************************************************
+* SendToWifiModule  : bool SendToWifiModule(String command, int DelayBeforeReading, char ExpectedOutput)
+*    returns    : return true if expected response is received from the wifi module
+*    Command    : AT command to send to wifi module    
+*    DelayBeforeReading : Time to wait before reading response from wifi module
+*    ExpectedOutput : Expected response from WifiModule
+* Created by    : Maitreya Panse
+* Date created    : 05/08/2019
+* Description   : Function sends AT commands to wifi module and checks if 
+**************************************************/
 
 bool SendToWifiModule(String command,int DelayBeforeReading, char ExpectedOutput[]) 
 {
@@ -193,9 +244,9 @@ bool SendToWifiModule(String command,int DelayBeforeReading, char ExpectedOutput
     Serial.println(command);
     esp8266.println(command); //Send AT Command to Wifi Module
     delay(DelayBeforeReading);
-   
-   //#DEBUG Serial.println(esp8266.readString()); 
-    if(esp8266.find(ExpectedOutput)) 
+    receivedData = esp8266.readString();
+    Serial.println(receivedData); 
+    if(receivedData.indexOf(ExpectedOutput)>= 0) 
     { 
        Serial.print("RECEIVED EXPECTED RESPONSE ");
        Serial.println(ExpectedOutput);
